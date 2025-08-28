@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>🌴 Florida Chess vs AI</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      display: flex; flex-direction: column;
+      align-items: center;
+      margin: 20px; padding: 0;
+      background: linear-gradient(to bottom, #a8e6cf, #e0f7fa);
+      color: #004d40;
+      user-select: none;
+    }
+    h1 { font-size: 2em; }
+    #status { margin: 10px; font-size: 1.2em; font-weight: bold; }
+    #board {
+      display: grid;
+      grid-template-columns: repeat(8, 50px);
+      grid-template-rows: repeat(8, 50px);
+      border: 4px solid #00695c; border-radius: 8px;
+    }
+    .square {
+      width: 50px; height: 50px;
+      display: flex; justify-content: center; align-items: center;
+      font-size: 32px;
+      cursor: pointer;
+    }
+    .light { background-color: #dcedc1; }
+    .dark { background-color: #a5d6a7; }
+    .selected { outline: 3px solid #ffcc80; }
+    button {
+      margin-top: 15px;
+      padding: 10px 18px;
+      font-size: 1em;
+      background: #00897b; color: white;
+      border: none; border-radius: 6px;
+      cursor: pointer;
+    }
+    button:disabled {
+      background: #b2dfdb; cursor: not-allowed;
+    }
+    @media(max-width: 480px) {
+      #board { grid-template-columns: repeat(8, 40px); grid-template-rows: repeat(8, 40px); }
+      .square { font-size: 26px; }
+    }
+  </style>
+</head>
+<body>
+  <h1>🌴 Florida Chess vs AI</h1>
+  <div id="status">Your move (White)</div>
+  <div id="board" role="grid" aria-label="Florida themed chessboard"></div>
+  <button id="resetBtn">Restart Game</button>
+
+  <script>
+    const boardElem = document.getElementById('board');
+    const statusElem = document.getElementById('status');
+    const resetBtn = document.getElementById('resetBtn');
+    const piecesMap = { r:'♜', n:'♞', b:'♝', q:'♛', k:'♚', p:'♟',
+                        R:'♖', N:'♘', B:'♗', Q:'♕', K:'♔', P:'♙'};
+
+    let board, selected, currentTurn, gameOver;
+
+    function initGame() {
+      board = [
+        ['r','n','b','q','k','b','n','r'],
+        ['p','p','p','p','p','p','p','p'],
+        ['','','','','','','',''],
+        ['','','','','','','',''],
+        ['','','','','','','',''],
+        ['','','','','','','',''],
+        ['P','P','P','P','P','P','P','P'],
+        ['R','N','B','Q','K','B','N','R']
+      ];
+      selected = null;
+      currentTurn = 'white';
+      gameOver = false;
+      statusElem.textContent = "Your move (White)";
+      renderBoard();
+    }
+
+    function renderBoard() {
+      boardElem.innerHTML = '';
+      for(let r=0; r<8; r++) for(let c=0; c<8; c++) {
+        const sq = document.createElement('div');
+        sq.className = `square ${(r+c)%2? 'dark':'light'}`;
+        sq.dataset.r = r; sq.dataset.c = c;
+        const p = board[r][c];
+        if (p) sq.textContent = piecesMap[p];
+        if (selected && selected[0]==r && selected[1]==c) sq.classList.add('selected');
+        sq.addEventListener('click', () => onSquareClick(r,c));
+        boardElem.appendChild(sq);
+      }
+    }
+
+    function onSquareClick(r, c) {
+      if (gameOver || currentTurn !== 'white') return;
+      const p = board[r][c];
+      if (selected) {
+        const [sr, sc] = selected;
+        if (tryMove(sr, sc, r, c)) return;
+        selected = null;
+        renderBoard();
+      } else if (p && p === p.toUpperCase()) {
+        selected = [r,c];
+        renderBoard();
+      }
+    }
+
+    function tryMove(sr, sc, tr, tc) {
+      const piece = board[sr][sc], target = board[tr][tc];
+      if (target && isWhite(piece) && isWhite(target)) return false; // no self
+      // For simplicity, allow any move (replace with legal checks later)
+      board[tr][tc] = piece;
+      board[sr][sc] = '';
+      renderBoard();
+      checkEnd();
+      if (!gameOver) { currentTurn = 'black'; statusElem.textContent = "AI's move"; setTimeout(aiMove, 500); }
+      return true;
+    }
+
+    function aiMove() {
+      if (gameOver) return;
+      // Collect all black moves (random pawn move forward or capture)
+      const moves = [];
+      for(let r=0; r<8; r++) for(let c=0; c<8; c++) {
+        const p = board[r][c];
+        if (p && p === p.toLowerCase()) {
+          const nr = r+1;
+          if (nr<8 && board[nr][c]==='') moves.push([r,c,nr,c]);
+          for(let dc of [-1,1]) {
+            const nc = c+dc;
+            if (nr<8 && nc>=0 && nc<8 && board[nr][nc] && board[nr][nc]===board[nr][nc].toUpperCase()) {
+              moves.push([r,c,nr,nc]);
+            }
+          }
+        }
+      }
+      if (moves.length) {
+        const [sr,sc,tr,tc] = moves[Math.floor(Math.random()*moves.length)];
+        board[tr][tc] = board[sr][sc];
+        board[sr][sc] = '';
+      }
+      renderBoard();
+      currentTurn = 'white';
+      statusElem.textContent = "Your move (White)";
+      checkEnd();
+    }
+
+    function checkEnd() {
+      const flat = board.flat().join('');
+      if (!flat.includes('K')) return endGame("AI wins! King captured.");
+      if (!flat.includes('k')) return endGame("You win! Enemy king captured.");
+    }
+
+    function endGame(msg) {
+      gameOver = true;
+      statusElem.textContent = msg;
+    }
+
+    function isWhite(p){return p && p === p.toUpperCase();}
+    function isBlack(p){return p && p === p.toLowerCase();}
+
+    resetBtn.addEventListener('click', initGame);
+
+    initGame();
+  </script>
+</body>
+</html>
